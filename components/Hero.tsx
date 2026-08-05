@@ -20,7 +20,7 @@ const NAMES = [
 
 // Font mapping for each name index
 const NAME_FONTS = [
-  "font-[family-name:var(--font-playfair)]",       // English - Playfair
+  "font-[family-name:var(--font-instrument)]",     // English - Instrument Serif
   "font-[family-name:var(--font-poppins)]",        // Hindi - Poppins
   "font-[family-name:var(--font-playfair)]",       // Punjabi - Playfair (fallback)
   "font-[family-name:var(--font-noto-sc)]",         // Chinese - Noto Serif SC
@@ -43,14 +43,9 @@ function TypewriterName() {
   const [displayed, setDisplayed] = useState("");
   const [nameIdx, setNameIdx] = useState(0);
   const [phase, setPhase] = useState<"typing" | "deleting" | "pause-empty">("typing");
-  const [paused, setPaused] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pausedRef = useRef(false);
-
-  pausedRef.current = paused;
 
   useEffect(() => {
-    if (paused) return;
     const target = NAMES[nameIdx];
 
     if (phase === "typing") {
@@ -79,51 +74,48 @@ function TypewriterName() {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
     };
-  }, [displayed, phase, nameIdx, paused]);
+  }, [displayed, phase, nameIdx]);
 
-  const handleClick = () => setPaused((p) => !p);
+  const handleClick = () => {
+    setNameIdx((i) => (i + 1) % NAMES.length);
+    setDisplayed("");
+    setPhase("typing");
+  };
   const currentFontClass = NAME_FONTS[nameIdx];
 
   return (
     <span
       className="inline-flex items-baseline whitespace-nowrap cursor-pointer select-none"
       onClick={handleClick}
-      title={paused ? "Click to resume" : "Click to pause"}
+      title="Show next language"
     >
       <span className={currentFontClass}>{displayed}</span>
       <span
         aria-hidden
-        className={`ml-[2px] inline-block w-[3px] self-stretch bg-current align-middle ${paused ? "opacity-100" : "animate-[blink_1s_step-end_infinite]"}`}
+        className="ml-[2px] inline-block w-[3px] self-stretch bg-current align-middle animate-[blink_1s_step-end_infinite]"
         style={{ marginBottom: "0.08em", marginTop: "0.08em" }}
       />
-      {paused && (
-        <span className="ml-3 text-[14px] font-sans font-normal tracking-normal text-secondary/60 not-italic">
-          ▶
-        </span>
-      )}
     </span>
   );
 }
 
 function FadeName() {
   const [nameIdx, setNameIdx] = useState(0);
-  const [paused, setPaused] = useState(false);
   const currentName = NAMES[nameIdx];
 
   useEffect(() => {
-    if (paused) return;
     const timeout = window.setTimeout(
       () => setNameIdx((i) => (i + 1) % NAMES.length),
       FADE_NAME_DURATION
     );
     return () => window.clearTimeout(timeout);
-  }, [nameIdx, paused]);
+  }, [nameIdx]);
 
   return (
     <span
-      className="inline-block cursor-pointer select-none"
-      onClick={() => setPaused((value) => !value)}
-      title={paused ? "Click to resume" : "Click to pause"}
+      className="inline-block whitespace-nowrap cursor-pointer select-none"
+      onClick={() => setNameIdx((i) => (i + 1) % NAMES.length)}
+      title="Show next language"
     >
       <AnimatePresence mode="wait">
         <motion.span
@@ -132,16 +124,11 @@ function FadeName() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.75, ease: "easeInOut" }}
-          className={`inline-block ${NAME_FONTS[nameIdx]}`}
+          className={`inline-block whitespace-nowrap ${NAME_FONTS[nameIdx]}`}
         >
           {currentName}
         </motion.span>
       </AnimatePresence>
-      {paused && (
-        <span className="ml-3 text-[14px] font-sans font-normal tracking-normal text-secondary/60 not-italic">
-          ▶
-        </span>
-      )}
     </span>
   );
 }

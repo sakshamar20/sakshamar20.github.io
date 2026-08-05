@@ -170,38 +170,36 @@ export default function Photography({ photos }: { photos: PhotoData }) {
                   onClick={() => setMode(opt.id)}
                   aria-pressed={mode === opt.id}
                   className={[
-                    "font-mono text-[11px] tracking-[0.14em] uppercase px-4 py-1.5 rounded-full transition-colors",
+                    "relative font-mono text-[11px] tracking-[0.14em] uppercase px-4 py-1.5 rounded-full text-secondary transition-colors hover:text-primary",
                     mode === opt.id
-                      ? "bg-accent text-white"
-                      : "text-secondary hover:text-primary",
+                      ? "text-white hover:text-white"
+                      : "",
                   ].join(" ")}
                 >
-                  {opt.label}
+                  {mode === opt.id && (
+                    <motion.span
+                      layoutId="photography-mode"
+                      aria-hidden
+                      className="absolute inset-0 rounded-full bg-accent"
+                      transition={{ type: "spring", stiffness: 420, damping: 32 }}
+                    />
+                  )}
+                  <span className="relative z-10">{opt.label}</span>
                 </button>
               ))}
             </div>
 
             <button
               type="button"
-              role="switch"
-              aria-checked={sepia}
+              aria-pressed={sepia}
               onClick={() => setSepia((v) => !v)}
-              className="inline-flex items-center gap-2 font-mono text-[11px] tracking-[0.14em] uppercase text-secondary hover:text-primary transition-colors"
+              className={[
+                "rounded-full border border-border px-4 py-1.5 font-mono text-[11px] tracking-[0.14em] uppercase transition-colors",
+                sepia
+                  ? "border-accent bg-accent text-white"
+                  : "bg-surface/60 text-secondary hover:text-primary",
+              ].join(" ")}
             >
-              <span
-                className={[
-                  "relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200",
-                  sepia ? "bg-accent" : "bg-border",
-                ].join(" ")}
-              >
-                <span
-                  aria-hidden
-                  className={[
-                    "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform duration-200",
-                    sepia ? "translate-x-[18px]" : "translate-x-1",
-                  ].join(" ")}
-                />
-              </span>
               Sepia
             </button>
           </div>
@@ -249,7 +247,7 @@ export default function Photography({ photos }: { photos: PhotoData }) {
                       onOpen={openByFilename}
                     />
                     <p className="mt-10 text-center font-mono text-[12px] text-tertiary">
-                      All photos shot through Galaxy S24 or Pixel 6a. Available
+                      all photos are shot through Galaxy S24 or Pixel 6a. Available
                       for commissions.
                     </p>
                   </>
@@ -292,7 +290,7 @@ export default function Photography({ photos }: { photos: PhotoData }) {
                 />
                 <circle cx="15.75" cy="6.25" r="0.9" fill="currentColor" />
               </svg>
-              <span>Check out my Instagram</span>
+              <span>instagram &bull; highhonshots </span>
               <span className="transition-transform duration-300 group-hover:translate-x-1">
                 →
               </span>
