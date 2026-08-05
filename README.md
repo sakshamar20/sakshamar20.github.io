@@ -1,11 +1,12 @@
 # Saksham Arora — GitHub Pages build
 
-Static-export copy of the main site, isolated so this folder can be pushed as
-the root of a `<username>.github.io` repo and served directly by GitHub Pages.
+Static-export copy of the main site, isolated for deployment from the root of
+the `Saksham-Arora` GitHub repository.
 
 ## What's different from the main site
 
-- `next.config.mjs` has `output: "export"` and `images: { unoptimized: true }`
+- `next.config.mjs` has `output: "export"`, the `/Saksham-Arora` Pages base
+  path, and `images: { unoptimized: true }`
   (GitHub Pages has no server, so there's no Next.js image optimizer or API
   routes — everything is pre-rendered to static HTML/CSS/JS at build time).
 - The blog's tag filter (`/blog?tag=...`) now filters client-side
@@ -18,8 +19,7 @@ the root of a `<username>.github.io` repo and served directly by GitHub Pages.
 
 ## One-time setup
 
-1. Push this folder as the root of a repo named `<your-username>.github.io`
-   (or any repo, then enable Pages for it).
+1. Push this folder as the root of the `Saksham-Arora` repo.
 2. In the repo's Settings → Pages, set **Source** to **GitHub Actions**.
 3. Push to `main` — `.github/workflows/deploy.yml` builds the site
    (`npm ci && npm run build`, which produces `out/`) and deploys it
