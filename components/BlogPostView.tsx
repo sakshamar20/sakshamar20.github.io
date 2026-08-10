@@ -135,7 +135,7 @@ export default function BlogPostView({ post }: { post: Post }) {
         <img
           src={post.cover}
           alt=""
-          className="mt-8 w-full rounded-lg border border-border object-cover"
+          className="mt-8 w-full rounded-lg object-cover"
         />
       )}
 

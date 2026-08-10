@@ -43,6 +43,22 @@ const INFLUENCE_RADIUS = 320;
 const REPEL_RADIUS = 110;
 const MIN_SPEED = 0.2;
 const MAX_SPEED = 1.2;
+const MIN_SEEDS = 12;
+const MAX_SEEDS = 90;
+const HOLD_DELAY_MS = 250;
+const HOLD_REPEAT_MS = 160;
+const DOUBLE_CLICK_WINDOW_MS = 350;
+const RIPPLE_DURATION_MS = 500;
+const RIPPLE_MAX_RADIUS = 42;
+
+type Press = {
+  mode: "add" | "remove";
+  x: number;
+  y: number;
+  repeatTimer: ReturnType<typeof setInterval> | null;
+};
+
+type Ripple = { x: number; y: number; start: number; mode: "add" | "remove" };
 
 export default function VoronoiCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -71,6 +87,10 @@ export default function VoronoiCanvas() {
     svy: 0,
     active: false,
   });
+  const lastDownTimeRef = useRef(0);
+  const pressRef = useRef<Press | null>(null);
+  const holdTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ripplesRef = useRef<Ripple[]>([]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -137,6 +157,27 @@ export default function VoronoiCanvas() {
           ctx.lineTo(cell[k].x, cell[k].y);
         }
         ctx.closePath();
+        ctx.stroke();
+      }
+
+      const now = performance.now();
+      const ripples = ripplesRef.current;
+      for (let i = ripples.length - 1; i >= 0; i--) {
+        const r = ripples[i];
+        const t = (now - r.start) / RIPPLE_DURATION_MS;
+        if (t >= 1) {
+          ripples.splice(i, 1);
+          continue;
+        }
+        const radius = (r.mode === "add" ? t : 1 - t) * RIPPLE_MAX_RADIUS;
+        const alpha = (1 - t) * 0.5;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, radius, 0, Math.PI * 2);
+        ctx.strokeStyle =
+          r.mode === "add"
+            ? `rgba(204, 138, 61, ${alpha})`
+            : `rgba(180, 70, 60, ${alpha})`;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       }
     };
@@ -243,10 +284,78 @@ export default function VoronoiCanvas() {
       m.x = x;
       m.y = y;
       m.active = true;
+      if (pressRef.current) {
+        pressRef.current.x = x;
+        pressRef.current.y = y;
+      }
     };
     const onMouseLeave = () => {
       mouseRef.current.active = false;
     };
+
+    const addSeedAt = (x: number, y: number) => {
+      const pts = pointsRef.current;
+      if (pts.length >= MAX_SEEDS) return;
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 0.3 + Math.random() * 0.5;
+      pts.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed });
+    };
+
+    const removeSeedNear = (x: number, y: number) => {
+      const pts = pointsRef.current;
+      if (pts.length <= MIN_SEEDS) return;
+      let idx = -1;
+      let best = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const dx = pts[i].x - x;
+        const dy = pts[i].y - y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best) {
+          best = d2;
+          idx = i;
+        }
+      }
+      if (idx >= 0) pts.splice(idx, 1);
+    };
+
+    const runPressAction = (p: Press) => {
+      if (p.mode === "add") addSeedAt(p.x, p.y);
+      else removeSeedNear(p.x, p.y);
+      ripplesRef.current.push({ x: p.x, y: p.y, start: performance.now(), mode: p.mode });
+    };
+
+    const clearPress = () => {
+      if (holdTimeoutRef.current) {
+        clearTimeout(holdTimeoutRef.current);
+        holdTimeoutRef.current = null;
+      }
+      if (pressRef.current?.repeatTimer) {
+        clearInterval(pressRef.current.repeatTimer);
+      }
+      pressRef.current = null;
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const now = performance.now();
+      const isDouble = now - lastDownTimeRef.current < DOUBLE_CLICK_WINDOW_MS;
+      lastDownTimeRef.current = now;
+
+      const mode: Press["mode"] = isDouble ? "remove" : "add";
+      const press: Press = { mode, x, y, repeatTimer: null };
+      pressRef.current = press;
+      runPressAction(press);
+
+      holdTimeoutRef.current = setTimeout(() => {
+        if (pressRef.current !== press) return;
+        press.repeatTimer = setInterval(() => runPressAction(press), HOLD_REPEAT_MS);
+      }, HOLD_DELAY_MS);
+    };
+
+    const onMouseUp = () => clearPress();
 
     resize();
     rafRef.current = requestAnimationFrame(step);
@@ -254,13 +363,18 @@ export default function VoronoiCanvas() {
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("mousemove", onMouseMove);
     canvas.addEventListener("mouseleave", onMouseLeave);
+    canvas.addEventListener("mousedown", onMouseDown);
+    window.addEventListener("mouseup", onMouseUp);
 
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      clearPress();
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("mousemove", onMouseMove);
       canvas.removeEventListener("mouseleave", onMouseLeave);
+      canvas.removeEventListener("mousedown", onMouseDown);
+      window.removeEventListener("mouseup", onMouseUp);
     };
   }, []);
 

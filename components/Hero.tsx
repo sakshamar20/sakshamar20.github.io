@@ -156,7 +156,7 @@ function ProfilePhoto({ photos }: { photos: string[] }) {
       aria-label={
         list.length > 1 ? "Show next profile photo" : "Profile photo"
       }
-      className={`relative w-[200px] h-[200px] md:w-[240px] md:h-[240px] rounded-full overflow-hidden border-2 border-accent/20 shadow-lg ${
+      className={`relative w-[200px] h-[200px] md:w-[240px] md:h-[240px] rounded-full overflow-hidden shadow-lg ${
         list.length > 1 ? "cursor-pointer" : "cursor-default"
       }`}
     >
