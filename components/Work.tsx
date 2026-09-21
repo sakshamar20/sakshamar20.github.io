@@ -1,8 +1,15 @@
 "use client";
 
-import { motion } from "framer-motion";
+import {
+  motion,
+  useMotionTemplate,
+  useMotionValue,
+  useReducedMotion,
+  useSpring,
+  useTransform,
+} from "framer-motion";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, type PointerEvent } from "react";
 import { projects, type Project } from "@/lib/projects";
 import ProjectDialog from "./ProjectDialog";
 
@@ -158,58 +165,115 @@ function ProjectCard({
   i: number;
   onOpen: (slug: string) => void;
 }) {
-  const [hover, setHover] = useState(false);
-  const opacity = hover ? 0.08 : 0.04;
+  const reduceMotion = useReducedMotion();
+  const pointerX = useMotionValue(220);
+  const pointerY = useMotionValue(120);
+  const rotateX = useMotionValue(0);
+  const rotateY = useMotionValue(0);
+  const smoothX = useSpring(pointerX, { stiffness: 260, damping: 28 });
+  const smoothY = useSpring(pointerY, { stiffness: 260, damping: 28 });
+  const smoothRotateX = useSpring(rotateX, { stiffness: 220, damping: 24 });
+  const smoothRotateY = useSpring(rotateY, { stiffness: 220, damping: 24 });
+  const contentX = useTransform(smoothRotateY, [-4, 4], [-3, 3]);
+  const contentY = useTransform(smoothRotateX, [-3, 3], [3, -3]);
+  const patternX = useTransform(smoothRotateY, [-4, 4], [-10, 10]);
+  const patternY = useTransform(smoothRotateX, [-3, 3], [10, -10]);
+  const glow = useMotionTemplate`radial-gradient(240px circle at ${smoothX}px ${smoothY}px, rgb(var(--accent) / 0.22), transparent 72%)`;
+
+  const updateTilt = (event: PointerEvent<HTMLButtonElement>) => {
+    if (reduceMotion || event.pointerType === "touch") return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - bounds.left;
+    const y = event.clientY - bounds.top;
+    const normalizedX = x / bounds.width - 0.5;
+    const normalizedY = y / bounds.height - 0.5;
+
+    pointerX.set(x);
+    pointerY.set(y);
+    rotateX.set(normalizedY * -6);
+    rotateY.set(normalizedX * 8);
+  };
+
+  const resetTilt = () => {
+    rotateX.set(0);
+    rotateY.set(0);
+  };
+
   return (
     <motion.button
       type="button"
       onClick={() => onOpen(p.slug)}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      onPointerMove={updateTilt}
+      onPointerLeave={resetTilt}
+      onPointerCancel={resetTilt}
       initial={{ opacity: 0, y: 16 }}
       whileInView={{ opacity: 1, y: 0 }}
+      whileHover={reduceMotion ? undefined : { y: -7, scale: 1.018 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.985 }}
       viewport={{ once: true, margin: "-60px" }}
       transition={{ duration: 0.4, delay: i * 0.07, ease: "easeOut" }}
       aria-label={`Open ${p.name} details`}
-      className="group relative block text-left rounded-lg border border-border bg-surface p-6 shadow-card overflow-hidden transition-all duration-[250ms] hover:border-accent hover:-translate-y-1"
+      className="group relative block overflow-hidden rounded-lg border border-border bg-surface p-6 text-left shadow-card transition-[border-color,box-shadow] duration-300 hover:border-accent hover:shadow-[0_20px_45px_rgb(0_0_0_/_0.22)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       style={{
-        backgroundImage: `url("data:image/svg+xml;utf8,${TRIANGLE_PATTERN(
-          opacity
-        )}")`,
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right -30px bottom -30px",
-        backgroundSize: "260px 260px",
+        rotateX: reduceMotion ? 0 : smoothRotateX,
+        rotateY: reduceMotion ? 0 : smoothRotateY,
+        transformPerspective: 900,
+        transformStyle: "preserve-3d",
       }}
     >
-      <p className="font-mono text-[10.5px] tracking-[0.12em] uppercase text-secondary">
-        {p.affiliation}
-      </p>
-      <h3 className="mt-2 font-medium text-[16px] text-primary leading-snug">
-        {p.name}
-      </h3>
-      <p className="mt-2 text-[14px] text-secondary leading-snug">
-        {p.oneLiner}
-      </p>
-      <div className="mt-5 flex flex-wrap gap-1.5">
-        {p.tags.slice(0, 3).map((t) => (
-          <span
-            key={t}
-            className="font-mono text-[11px] px-2 py-0.5 rounded-full bg-accent-light text-accent"
-          >
-            {t}
+      <motion.span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ background: glow }}
+      />
+      <motion.span
+        aria-hidden
+        className="pointer-events-none absolute -bottom-10 -right-8 h-[260px] w-[260px] bg-[length:260px_260px] bg-no-repeat opacity-40 transition-opacity duration-500 group-hover:opacity-100"
+        style={{
+          x: reduceMotion ? 0 : patternX,
+          y: reduceMotion ? 0 : patternY,
+          backgroundImage: `url("data:image/svg+xml;utf8,${TRIANGLE_PATTERN(0.12)}")`,
+        }}
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute bottom-0 left-1/2 h-[2px] w-0 -translate-x-1/2 bg-accent transition-all duration-500 ease-out group-hover:w-full"
+      />
+      <motion.div
+        className="relative z-10"
+        style={{ x: reduceMotion ? 0 : contentX, y: reduceMotion ? 0 : contentY }}
+      >
+        <p className="font-mono text-[10.5px] tracking-[0.12em] uppercase text-secondary">
+          {p.affiliation}
+        </p>
+        <h3 className="mt-2 font-medium text-[16px] text-primary leading-snug transition-colors duration-300 group-hover:text-accent">
+          {p.name}
+        </h3>
+        <p className="mt-2 text-[14px] text-secondary leading-snug">
+          {p.oneLiner}
+        </p>
+        <div className="mt-5 flex flex-wrap gap-1.5">
+          {p.tags.slice(0, 3).map((t) => (
+            <span
+              key={t}
+              className="rounded-full bg-accent-light px-2 py-0.5 font-mono text-[11px] text-accent transition-transform duration-300 group-hover:-translate-y-px"
+            >
+              {t}
+            </span>
+          ))}
+          {p.tags.length > 3 && (
+            <span className="rounded-full px-2 py-0.5 font-mono text-[11px] text-secondary">
+              +{p.tags.length - 3}
+            </span>
+          )}
+        </div>
+        <div className="mt-6 flex justify-end text-[13px] text-secondary transition-colors duration-300 group-hover:text-accent">
+          <span className="inline-flex items-center gap-1 transition-transform duration-300 group-hover:translate-x-1">
+            View <span className="transition-transform duration-300 group-hover:-rotate-12">→</span>
           </span>
-        ))}
-        {p.tags.length > 3 && (
-          <span className="font-mono text-[11px] px-2 py-0.5 rounded-full text-secondary">
-            +{p.tags.length - 3}
-          </span>
-        )}
-      </div>
-      <div className="mt-6 flex justify-end text-[13px] text-secondary group-hover:text-accent transition-all duration-[250ms]">
-        <span className="transition-transform duration-[250ms] group-hover:translate-x-1">
-          View →
-        </span>
-      </div>
+        </div>
+      </motion.div>
     </motion.button>
   );
 }
