@@ -301,7 +301,7 @@ function CVButton() {
   const [hover, setHover] = useState(false);
   return (
     <a
-      href="PASTE_DRIVE_LINK_HERE"
+      href="/resume.pdf"
       target="_blank"
       rel="noopener noreferrer"
       onMouseEnter={() => setHover(true)}

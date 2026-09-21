@@ -18,6 +18,31 @@ export type Project = {
 
 export const projects: Project[] = [
   {
+    slug: "bilevel-rl-circular-manufacturing",
+    name: "Bilevel Reinforcement Learning for Circular Manufacturing",
+    period: "May 2026 – Present",
+    affiliation: "Purdue University · Edwardson School of Industrial Engineering",
+    oneLiner:
+      "A bilevel reinforcement-learning framework coordinating waste pricing and recovery across an ammonia-urea production network.",
+    tags: ["Bilevel RL", "PPO", "GAE", "Surrogate Modeling"],
+    summary: [
+      "Research with Prof. Vaneet Aggarwal on circularity in a three-factory ammonia-urea production network, formulated as a bilevel reinforcement-learning problem with a price-setting leader and best-responding follower agents.",
+      "The system combines first-principles process models, high-accuracy neural surrogates, and statistically validated multi-agent control experiments.",
+    ],
+    contributions: [
+      "Built a reproducible simulation environment from first-principles models of electrolysis, Haber-Bosch, and urea synthesis with exact mass-balance closure.",
+      "Generated 414K samples through orthogonal Latin hypercube sampling and trained neural surrogates achieving R² > 0.998 in- and out-of-distribution.",
+      "Adapted a penalty-based bilevel hypergradient algorithm using PPO with GAE for multi-stage, high-dimensional continuous control.",
+      "Diagnosed market-calibration and reward-design failure modes that obscured the relationship between optimization objectives and physical waste recovery.",
+      "Validated results across 10 random seeds using paired t-tests, Wilcoxon signed-rank tests, Bonferroni correction, and pre-registered hypotheses.",
+    ],
+    outcomes: [
+      "+8.5 percentage points waste recovery",
+      "p < 0.01 across 10 seeds",
+      "Manuscript in preparation",
+    ],
+  },
+  {
     slug: "flipkart-homepage-analytics",
     name: "Homepage Personalization & Analytics",
     period: "Jul 2024 – Present",
@@ -116,25 +141,6 @@ export const projects: Project[] = [
       "Implemented a massively parallel particle simulator capable of simulating 1M+ particles in real time.",
       "Optimized collision detection from O(N²) to O(N) using a uniform spatial grid (spatial hashing) to localize interactions.",
       "Maximized memory throughput by sorting particles by grid index using the Thrust library, ensuring coalesced memory access on the GPU.",
-    ],
-  },
-  {
-    slug: "beyond-borders",
-    name: "Beyond Borders — Postgraduate Mobility",
-    period: "Aug 2023 – Nov 2023",
-    affiliation: "IIT Kanpur",
-    oneLiner:
-      "Data-driven study of where Indian postgrads actually end up — built end-to-end in R.",
-    tags: ["R", "Shiny", "ggplot2", "RSelenium"],
-    summary: [
-      "An empirical study of postgraduate student mobility from India: which majors map to which universities, what admit probabilities really look like, and how academic trajectories sort across countries.",
-      "Built end-to-end in R: scraping, preprocessing, statistical analysis, and an interactive Shiny dashboard for exploration.",
-    ],
-    contributions: [
-      "Analyzed postgraduate applications using RStudio, uncovering trends in foreign university admissions.",
-      "Implemented robust data scraping pipelines with rvest and RSelenium for precise application-data collection.",
-      "Optimized preprocessing workflows in dplyr with techniques to mitigate sample bias.",
-      "Developed interactive visualizations with ggplot2, plotly, and Shiny — surfacing major preferences, admit probabilities, and academic trajectories.",
     ],
   },
 ];
