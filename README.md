@@ -1,4 +1,4 @@
-# Saksham Arora
+# About Me
 
 I am a graduate student pursuing a joint master's in Statistics and Computer Science at Purdue University. My interests sit at the intersection of machine learning, causal inference, quantitative finance, experimentation, and data-driven decision-making.
 
