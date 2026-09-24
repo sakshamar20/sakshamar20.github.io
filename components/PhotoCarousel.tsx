@@ -13,76 +13,208 @@ type Props = {
   onOpen: (filename: string) => void;
 };
 
-type BentoCell =
-  | { kind: "tall"; photo: Photo; width: number; height: number }
-  | {
-      kind: "stack";
-      top: Photo;
-      bottom: Photo;
-      width: number;
-      halfH: number;
-    };
+type BentoTile = {
+  photo: Photo;
+  row: number;
+  column: number;
+  rowSpan: number;
+  columnSpan: number;
+  filler?: boolean;
+};
+
+type BentoLayout = {
+  tiles: BentoTile[];
+  columnCount: number;
+};
 
 function aspect(p: Photo) {
   return p.width / Math.max(1, p.height);
 }
 
-function isPortrait(p: Photo) {
-  return aspect(p) < 1;
+function seededRandom(value: string, seed: number) {
+  let hash = 2166136261 ^ seed;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 4294967296;
 }
 
-/**
- * Portraits → one tile spanning full height (2 units).
- * Landscapes → always two stacked in the same column width (no empty gaps).
- */
-function packBento(
-  photos: Photo[],
-  totalH: number,
-  gap: number
-): BentoCell[] {
-  const half = (totalH - gap) / 2;
-  const cells: BentoCell[] = [];
-  const queue = [...photos];
+function orderPhotosForBento(photos: Photo[], seed: number) {
+  const shuffle = (items: Photo[], offset: number) =>
+    [...items].sort(
+      (a, b) =>
+        seededRandom(a.filename, seed + offset) -
+        seededRandom(b.filename, seed + offset)
+    );
 
-  while (queue.length > 0) {
-    const a = queue.shift()!;
+  const portraits = shuffle(
+    photos.filter((photo) => aspect(photo) < 0.9),
+    101
+  );
+  const others = shuffle(
+    photos.filter((photo) => aspect(photo) >= 0.9),
+    211
+  );
+  const ordered: Photo[] = [];
 
-    if (isPortrait(a)) {
-      cells.push({
-        kind: "tall",
-        photo: a,
-        width: totalH * aspect(a),
-        height: totalH,
-      });
-      continue;
-    }
+  // Keep the selection organic, but do not allow the portrait bucket to be
+  // exhausted as one uninterrupted block at either end of the carousel.
+  while (portraits.length > 0 || others.length > 0) {
+    const lastWasPortrait =
+      ordered.length > 0 && aspect(ordered[ordered.length - 1]) < 0.9;
+    const remainingTotal = portraits.length + others.length;
+    const portraitShare = portraits.length / Math.max(1, remainingTotal);
+    const random = seededRandom(`order-${ordered.length}`, seed + 307);
+    const mustTakePortrait =
+      portraits.length > 0 && portraits.length >= others.length;
+    const takePortrait =
+      portraits.length > 0 &&
+      (!lastWasPortrait || others.length === 0) &&
+      (others.length === 0 || mustTakePortrait || random < portraitShare);
 
-    // Landscape: find another landscape to stack with
-    const nextLandscapeIdx = queue.findIndex((p) => !isPortrait(p));
-    if (nextLandscapeIdx === -1) {
-      // Lone landscape — still span full height at its ratio
-      cells.push({
-        kind: "tall",
-        photo: a,
-        width: totalH * aspect(a),
-        height: totalH,
-      });
-      continue;
-    }
-
-    const [b] = queue.splice(nextLandscapeIdx, 1);
-    // Shared column width from the average landscape ratio at half-height
-    const width = half * ((aspect(a) + aspect(b)) / 2);
-    cells.push({
-      kind: "stack",
-      top: a,
-      bottom: b,
-      width,
-      halfH: half,
-    });
+    if (takePortrait) ordered.push(portraits.shift()!);
+    else if (others.length > 0) ordered.push(others.shift()!);
+    else ordered.push(portraits.shift()!);
   }
 
-  return cells;
+  return ordered;
+}
+
+function chooseSpan(photo: Photo, index: number, rows: number, seed: number) {
+  if (rows === 1) {
+    return {
+      rowSpan: 1,
+      columnSpan:
+        aspect(photo) > 1.15 && seededRandom(photo.filename, seed + index) > 0.2
+          ? 2
+          : 1,
+    };
+  }
+
+  const ratio = aspect(photo);
+  const random = seededRandom(photo.filename, seed + index);
+
+  // Portraits become tall bento blocks; landscapes are randomly allowed to
+  // become wide blocks. Near-square photos vary to keep the layout organic.
+  if (ratio < 0.9) return { rowSpan: 2, columnSpan: 1 };
+  if (ratio > 1.1) {
+    return { rowSpan: 1, columnSpan: random < 0.72 ? 2 : 1 };
+  }
+  if (random < 0.3) return { rowSpan: 2, columnSpan: 1 };
+  if (random < 0.65) return { rowSpan: 1, columnSpan: 2 };
+  return { rowSpan: 1, columnSpan: 1 };
+}
+
+/** Packs orientation-aware spans into a dense, gap-free horizontal grid. */
+function packBento(photos: Photo[], requestedRows: number, seed: number): BentoLayout {
+  const rows = Math.max(1, Math.round(requestedRows));
+  const orderedPhotos = orderPhotosForBento(photos, seed);
+  const occupied: boolean[][] = Array.from({ length: rows }, () => []);
+  const tiles: BentoTile[] = [];
+  let tallTileIndex = 0;
+  const startTallTilesAtBottom = seed % 2 === 1;
+
+  const fits = (
+    row: number,
+    column: number,
+    rowSpan: number,
+    columnSpan: number
+  ) => {
+    if (row + rowSpan > rows) return false;
+    for (let r = row; r < row + rowSpan; r += 1) {
+      for (let c = column; c < column + columnSpan; c += 1) {
+        if (occupied[r][c]) return false;
+      }
+    }
+    return true;
+  };
+
+  const occupy = (tile: BentoTile) => {
+    for (let r = tile.row; r < tile.row + tile.rowSpan; r += 1) {
+      for (let c = tile.column; c < tile.column + tile.columnSpan; c += 1) {
+        occupied[r][c] = true;
+      }
+    }
+  };
+
+  orderedPhotos.forEach((photo, index) => {
+    const { rowSpan, columnSpan } = chooseSpan(photo, index, rows, seed);
+    let column = 0;
+    let placed = false;
+
+    while (!placed) {
+      const possibleRows = Array.from(
+        { length: rows - rowSpan + 1 },
+        (_, row) => row
+      );
+      const placeTallTileAtBottom =
+        rowSpan > 1 &&
+        (tallTileIndex % 2 === 0
+          ? startTallTilesAtBottom
+          : !startTallTilesAtBottom);
+      if (
+        placeTallTileAtBottom ||
+        (rowSpan === 1 && seededRandom(photo.filename, seed + 401) < 0.5)
+      ) {
+        possibleRows.reverse();
+      }
+
+      // Leave at least one base column between tall blocks. Wide and square
+      // photos can then occupy that space instead of portraits forming a wall.
+      const touchesTallTile =
+        rowSpan > 1 &&
+        tiles.some(
+          (tile) =>
+            tile.rowSpan > 1 &&
+            column <= tile.column + tile.columnSpan &&
+            column + columnSpan >= tile.column
+        );
+
+      if (touchesTallTile) {
+        column += 1;
+        continue;
+      }
+
+      for (const row of possibleRows) {
+        if (!fits(row, column, rowSpan, columnSpan)) continue;
+        const tile = { photo, row, column, rowSpan, columnSpan };
+        tiles.push(tile);
+        occupy(tile);
+        if (rowSpan > 1) tallTileIndex += 1;
+        placed = true;
+        break;
+      }
+      if (!placed) column += 1;
+    }
+  });
+
+  const columnCount = tiles.reduce(
+    (max, tile) => Math.max(max, tile.column + tile.columnSpan),
+    0
+  );
+
+  // Complete any holes at the edge with deterministic 1×1 filler tiles so
+  // the repeated track joins seamlessly without blank cells.
+  let fillerIndex = 0;
+  for (let column = 0; column < columnCount; column += 1) {
+    for (let row = 0; row < rows; row += 1) {
+      if (occupied[row][column]) continue;
+      const tile: BentoTile = {
+        photo: orderedPhotos[fillerIndex % orderedPhotos.length],
+        row,
+        column,
+        rowSpan: 1,
+        columnSpan: 1,
+        filler: true,
+      };
+      fillerIndex += 1;
+      tiles.push(tile);
+      occupy(tile);
+    }
+  }
+
+  return { tiles, columnCount };
 }
 
 function PhotoTile({
@@ -180,25 +312,50 @@ export default function PhotoCarousel({ photos, onOpen }: Props) {
   const {
     carouselDurationSec,
     carouselHeightPx,
+    carouselPhotosPerColumn,
+    carouselLayoutSeed,
     carouselGapPx,
     carouselEdgeZonePx,
     carouselFastForwardMultiplier,
   } = photographyConfig;
 
-  const cells = useMemo(
-    () => packBento(photos, carouselHeightPx, carouselGapPx),
-    [photos, carouselHeightPx, carouselGapPx]
+  const rowCount = Math.max(1, Math.round(carouselPhotosPerColumn));
+  const unitSize =
+    (carouselHeightPx - carouselGapPx * Math.max(0, rowCount - 1)) /
+    rowCount;
+
+  const layout = useMemo(
+    () => packBento(photos, carouselPhotosPerColumn, carouselLayoutSeed),
+    [photos, carouselPhotosPerColumn, carouselLayoutSeed]
   );
 
-  const sequence = useMemo(() => {
-    if (cells.length === 0) return [];
-    // Enough copies that one half of the track always exceeds the viewport.
-    const min = 14;
-    const n = Math.max(3, Math.ceil(min / cells.length));
-    return Array.from({ length: n }, () => cells).flat();
-  }, [cells]);
+  const { track, trackColumnCount } = useMemo(() => {
+    if (layout.columnCount === 0) {
+      return { track: [] as BentoTile[], trackColumnCount: 0 };
+    }
 
-  const track = useMemo(() => [...sequence, ...sequence], [sequence]);
+    // Make each half comfortably wider than the viewport, then duplicate it
+    // exactly so the animation can wrap without changing the arrangement.
+    const repeats = Math.max(1, Math.ceil(14 / layout.columnCount));
+    const halfColumnCount = layout.columnCount * repeats;
+    const half = Array.from({ length: repeats }, (_, repeatIndex) =>
+      layout.tiles.map((tile) => ({
+        ...tile,
+        column: tile.column + repeatIndex * layout.columnCount,
+      }))
+    ).flat();
+
+    return {
+      track: [
+        ...half,
+        ...half.map((tile) => ({
+          ...tile,
+          column: tile.column + halfColumnCount,
+        })),
+      ],
+      trackColumnCount: halfColumnCount * 2,
+    };
+  }, [layout]);
 
   // Position is driven by rAF instead of a CSS animation so that changing
   // speed (hover / fast-forward) never resets or jumps the scroll — the
@@ -293,44 +450,40 @@ export default function PhotoCarousel({ photos, onOpen }: Props) {
       <div className="overflow-hidden py-10">
         <div
           ref={trackRef}
-          className="flex w-max items-stretch will-change-transform"
+          className="grid w-max will-change-transform"
           style={{
+            gridTemplateRows: `repeat(${rowCount}, ${unitSize}px)`,
+            gridTemplateColumns: `repeat(${trackColumnCount}, ${unitSize}px)`,
             gap: carouselGapPx,
             height: carouselHeightPx,
           }}
         >
-          {track.map((cell, i) =>
-            cell.kind === "tall" ? (
+          {track.map((tile, tileIndex) => {
+            const width =
+              unitSize * tile.columnSpan +
+              carouselGapPx * (tile.columnSpan - 1);
+            const height =
+              unitSize * tile.rowSpan + carouselGapPx * (tile.rowSpan - 1);
+
+            return (
+            <div
+              key={`${tile.photo.filename}-${tile.column}-${tile.row}-${tileIndex}`}
+              className="relative"
+              style={{
+                gridRow: `${tile.row + 1} / span ${tile.rowSpan}`,
+                gridColumn: `${tile.column + 1} / span ${tile.columnSpan}`,
+              }}
+            >
               <PhotoTile
-                key={`tall-${cell.photo.filename}-${i}`}
-                photo={cell.photo}
-                width={cell.width}
-                height={cell.height}
+                photo={tile.photo}
+                width={width}
+                height={height}
                 onOpen={onOpen}
-                priority={i < 8}
+                priority={tile.column < 5 && !tile.filler}
               />
-            ) : (
-              <div
-                key={`stack-${cell.top.filename}-${i}`}
-                className="flex shrink-0 flex-col"
-                style={{ width: cell.width, gap: carouselGapPx }}
-              >
-                <PhotoTile
-                  photo={cell.top}
-                  width={cell.width}
-                  height={cell.halfH}
-                  onOpen={onOpen}
-                  priority={i < 8}
-                />
-                <PhotoTile
-                  photo={cell.bottom}
-                  width={cell.width}
-                  height={cell.halfH}
-                  onOpen={onOpen}
-                />
-              </div>
-            )
-          )}
+            </div>
+            );
+          })}
         </div>
       </div>
     </div>
