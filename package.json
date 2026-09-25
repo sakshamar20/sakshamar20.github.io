@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "photos:optimize": "node scripts/optimize-photos.mjs",
+    "dev": "node scripts/dev.mjs",
+    "prebuild": "npm run photos:optimize",
     "build": "next build"
   },
   "dependencies": {
